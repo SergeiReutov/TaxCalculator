@@ -2,13 +2,19 @@ const fs = require('fs');
 const R = require('ramda');
 
 const writeToFile = R.curry((file, data) => {
-  fs.writeFileSync(file, JSON.stringify(data));
+  fs.writeFileSync(`output/${file}`, JSON.stringify(data));
   return data;
 });
 
 const round = (number) => Math.round((number + Number.EPSILON) * 100) / 100;
 
+const debug = R.curry((message, data) => {
+  console.log(message);
+  return data;
+})
+
 module.exports = {
   writeToFile,
   round,
+  debug,
 }

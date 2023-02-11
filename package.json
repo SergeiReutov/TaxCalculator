@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js all",
+    "start-revolut": "node index.js revolut",
+    "start-etoro": "node index.js etoro"
   },
   "author": "",
   "license": "ISC",

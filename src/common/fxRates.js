@@ -1,12 +1,10 @@
-const fs = require('fs');
 const R = require('ramda');
 const moment = require('moment');
 const fetch = require('node-fetch');
 
-const { NBP_BASE_URL } = require('./variables.js');
-const { getDate } = require('./utils/trades.js');
+const { NBP_BASE_URL } = require('./enums.js');
 
-const fetchFxRates = async (trades = []) => {
+const fetchFxRates = async ({ trades = [], getDate }) => {
   let fx_rates = {};
   let rateStartDate = R.pipe(
     R.head,
@@ -17,7 +15,11 @@ const fetchFxRates = async (trades = []) => {
     R.last,
     getDate
   )(trades);
-  let currentEndDate = moment(rateStartDate).add(3, 'months');
+  let currentEndDate = moment.min([
+    rateEndDate,
+    moment(rateStartDate).add(3, 'months'),
+  ]);
+
   while (currentEndDate.isSameOrBefore(rateEndDate)) {
     const startDate = rateStartDate.format('YYYY-MM-DD');
     const endDate = currentEndDate.format('YYYY-MM-DD');
@@ -46,7 +48,6 @@ const fetchFxRates = async (trades = []) => {
       currentEndDate = moment(rateEndDate);
     }
   }
-  fs.writeFileSync('fx_rates.json', JSON.stringify(fx_rates));
 
   return fx_rates;
 }

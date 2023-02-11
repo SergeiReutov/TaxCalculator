@@ -1,17 +1,11 @@
-const TAX_RATE = 0.19;
-
-const NBP_BASE_URL = 'http://api.nbp.pl/api/exchangerates/rates/A/USD';
-
-const START_DATE = '2021-01-01';
-const END_DATE = '2021-12-31';
-
 const TYPES = {
-  BUY: 'BUY',
-  SELL: 'SELL',
-  CUSTODY_FEE: 'CUSTODY_FEE',
+  BUY: 'BUY - MARKET',
+  SELL: 'SELL - MARKET',
+  CUSTODY_FEE: 'CUSTODY FEE',
   DIVIDEND: 'DIVIDEND',
   CASH_IN: 'CASH TOP-UP',
-  CASH_OUT: 'CASH WITHDRAWAL'
+  CASH_OUT: 'CASH WITHDRAWAL',
+  STOCK_SPLIT: 'STOCK SPLIT',
 };
 
 const PROPERTIES = {
@@ -26,14 +20,13 @@ const PROPERTIES = {
   TOTAL_PLN: 'Total PLN',
 };
 
-const DATE_FORMAT = 'DD/MM/YYYY HH:mm:ss';
+const DATE_FORMAT = 'YYYY-MM-DDTHH:mm:ss.SSSSSSZ';
+
+const DIVIDEND_NET_RATE = 0.85;
 
 module.exports = {
-  TAX_RATE,
-  NBP_BASE_URL,
-  START_DATE,
-  END_DATE,
   TYPES,
   PROPERTIES,
-  DATE_FORMAT
+  DATE_FORMAT,
+  DIVIDEND_NET_RATE,
 };
