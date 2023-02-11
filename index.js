@@ -1,7 +1,7 @@
-const R = require('ramda');
+import * as R from 'ramda';
 
-const { execute: executeRevolut } = require('./src/revolut/index.js');
-const { execute: executeEtoro } = require('./src/etoro/index.js');
+import { execute as executeRevolut } from './src/revolut/index.js';
+import { execute as executeEtoro } from './src/etoro/index.js';
 
 const RUN_MODE = {
   ALL: 'all', // runs everything

@@ -4,7 +4,63 @@ import * as R from 'ramda';
 
 import { round } from '../common/utils.js';
 import { TAX_RATE } from '../common/enums.js';
-import { TYPES, PROPERTIES, DATE_FORMAT, DIVIDEND_NET_RATE } from './enums.js';
+import { TYPES, PROPERTIES, DATE_FORMAT } from './enums.js';
+
+const splitDealsToTrades = R.pipe(
+  R.map((deal) => [
+    {
+      [PROPERTIES.TICKER]: R.pipe(
+        R.prop('Action'),
+        R.replace('Buy ', '')
+      )(deal),
+      [PROPERTIES.TYPE]: TYPES.BUY,
+      [PROPERTIES.DATE]: R.prop('Open Date', deal),
+      [PROPERTIES.QUANTITY]: R.pipe(
+        R.prop('Units'),
+        parseFloat
+      )(deal),
+      [PROPERTIES.TOTAL_AMOUNT]: R.pipe(
+        R.prop('Units'),
+        parseFloat,
+        R.multiply(
+          R.pipe(
+            R.prop('Open Rate'),
+            R.replace(/[^0-9\,]/g, ''),
+            R.replace(',', '.'),
+            parseFloat,
+          )(deal)
+        ),
+        round
+      )(deal),
+    },
+    {
+      [PROPERTIES.TICKER]: R.pipe(
+        R.prop('Action'),
+        R.replace('Buy ', '')
+      )(deal),
+      [PROPERTIES.TYPE]: TYPES.SELL,
+      [PROPERTIES.DATE]: R.prop('Close Date', deal),
+      [PROPERTIES.QUANTITY]: R.pipe(
+        R.prop('Units'),
+        parseFloat
+      )(deal),
+      [PROPERTIES.TOTAL_AMOUNT]: R.pipe(
+        R.prop('Units'),
+        parseFloat,
+        R.multiply(
+          R.pipe(
+            R.prop('Close Rate'),
+            R.replace(/[^0-9\,]/g, ''),
+            R.replace(',', '.'),
+            parseFloat,
+          )(deal)
+        ),
+        round
+      )(deal),
+    }
+  ]),
+  R.flatten
+);
 
 const getDate = (trade) => moment(R.prop(PROPERTIES.DATE, trade), DATE_FORMAT);
 
@@ -17,12 +73,6 @@ const sortByDate = R.sort(
     }
     return 1;
   }
-);
-
-const getTotalAmount = R.pipe(
-  R.prop(PROPERTIES.TOTAL_AMOUNT),
-  (string) => string.replace(/[$,]/g, ''),
-  parseFloat
 );
 
 const assignFXRateAndTotalPLN = (fxRates) => (trades = []) => R.map(
@@ -41,7 +91,7 @@ const assignFXRateAndTotalPLN = (fxRates) => (trades = []) => R.map(
       );
       date.subtract(1, 'day');
     }
-    const totalAmountPLN = getTotalAmount(trade) * fxRate;
+    const totalAmountPLN = R.prop(PROPERTIES.TOTAL_AMOUNT, trade) * fxRate;
     return {
       ...trade,
       [PROPERTIES.FX_RATE]: fxRate,
@@ -51,71 +101,7 @@ const assignFXRateAndTotalPLN = (fxRates) => (trades = []) => R.map(
   trades
 );
 
-
-const isCashOperation = R.either(
-  R.propEq(PROPERTIES.TYPE, TYPES.CASH_IN),
-  R.propEq(PROPERTIES.TYPE, TYPES.CASH_OUT)
-);
-
-const removeCashOperations = R.reject(isCashOperation);
-
-const filterByType = R.curry((type, trades) => R.filter(
-  R.propEq(PROPERTIES.TYPE, type),
-  trades
-));
-
-const rejectByType = R.curry((type, trades) => R.reject(
-  R.propEq(PROPERTIES.TYPE, type),
-  trades
-));
-
-const sumPLN = R.reduce(
-  (acc, trade) => acc += R.prop(PROPERTIES.TOTAL_PLN, trade),
-  0
-);
-
-const calculateFees = R.pipe(
-  filterByType(TYPES.CUSTODY_FEE),
-  sumPLN,
-  (fees) => Math.abs(round(fees))
-);
-
-const calculateDividends = (trades = []) => {
-  const totalDividends = R.pipe(
-    filterByType(TYPES.DIVIDEND),
-    sumPLN
-  )(trades);
-
-  const income = round(totalDividends / DIVIDEND_NET_RATE);
-  const taxOverall = round(income * TAX_RATE);
-  const taxPaid = round(income - totalDividends);
-  const tax = round(taxOverall - taxPaid);
-
-  return {
-    income,
-    taxOverall,
-    taxPaid,
-    tax,
-  };
-};
-
-const prependLeftoverTrades = (trades = []) => {
-  try {
-    const leftoverTrades = JSON.parse(fs.readFileSync('./input/revolut/leftoverTrades.json', 'utf8'));
-    return R.concat(
-      R.pipe(
-        R.values,
-        R.flatten
-      )(leftoverTrades),
-      trades
-    );
-  } catch (error) {
-    console.error('Error reading leftoverTrades');
-    return trades;
-  }
-};
-
-const getQuantity = (trade) => parseFloat(R.prop(PROPERTIES.QUANTITY, trade));
+const getQuantity = (trade) => R.prop(PROPERTIES.QUANTITY, trade);
 
 const throwError = (error, trade = {}) => {
   const date = getDate(trade).format('YYYY-MM-DD');
@@ -147,7 +133,9 @@ const splitDeal = (initialDeal, trade) => {
   };
   subDeal.push(completedTrade);
   subDeal.push(trade);
-  deal.unshift(leftoverTrade);
+  if (leftoverQuantity > 0) {
+    deal.unshift(leftoverTrade);
+  }
   return [subDeal, deal];
 };
 
@@ -158,10 +146,6 @@ const getDeals = (trades = []) => {
   let openTrades = [];
   trades.forEach((trade) => {
     const tradeQuantity = getQuantity(trade);
-    if (R.propEq(PROPERTIES.TYPE, TYPES.STOCK_SPLIT, trade)) {
-      currentQuantity += tradeQuantity;
-      return;
-    }
     if (R.propEq(PROPERTIES.TYPE, TYPES.BUY, trade)) {
       // if BUY trade - just increase currentQuantity
       currentQuantity += tradeQuantity;
@@ -266,14 +250,10 @@ const calculateDeals = R.pipe(
 );
 
 export {
+  splitDealsToTrades,
   getDate,
   sortByDate,
   assignFXRateAndTotalPLN,
-  removeCashOperations,
-  calculateFees,
-  rejectByType,
-  calculateDividends,
-  prependLeftoverTrades,
   groupToDeals,
   calculateDeals,
 };

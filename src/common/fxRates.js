@@ -1,8 +1,8 @@
-const R = require('ramda');
-const moment = require('moment');
-const fetch = require('node-fetch');
+import * as R from 'ramda';
+import moment from 'moment';
+import fetch from 'node-fetch';
 
-const { NBP_BASE_URL } = require('./enums.js');
+import { NBP_BASE_URL } from './enums.js';
 
 const fetchFxRates = async ({ trades = [], getDate }) => {
   let fx_rates = {};
@@ -52,6 +52,6 @@ const fetchFxRates = async ({ trades = [], getDate }) => {
   return fx_rates;
 }
 
-module.exports = {
+export {
   fetchFxRates
 };

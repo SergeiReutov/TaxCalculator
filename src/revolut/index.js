@@ -1,12 +1,12 @@
-const csv = require('csv-parser');
-const fs = require('fs');
-const R = require('ramda');
+import fs from 'fs';
+import neatCsv from 'neat-csv';
+import * as R from 'ramda';
 
-const { TYPES } = require('./enums.js');
-const { TAX_RATE } = require('../common/enums.js');
-const { fetchFxRates } = require('../common/fxRates.js');
-const { writeToFile, round } = require('../common/utils.js');
-const {
+import { TYPES } from './enums.js';
+import { TAX_RATE } from '../common/enums.js';
+import { fetchFxRates } from '../common/fxRates.js';
+import { writeToFile, round } from '../common/utils.js';
+import {
   getDate,
   sortByDate,
   assignFXRateAndTotalPLN,
@@ -17,12 +17,11 @@ const {
   prependLeftoverTrades,
   groupToDeals,
   calculateDeals,
-} = require('./utils.js');
+} from './utils.js';
 
 
 // -------------------------------------------------------------------
 
-let rawTrades = [];
 let result = {
   fees: 0, // overall fees
   dividends: {
@@ -48,43 +47,43 @@ let result = {
 // -------------------------------------------------------------------
 
 async function execute() {
-  return fs.createReadStream('./input/revolut/trades.csv')
-    .pipe(csv())
-    .on('data', (data) => rawTrades.push(data))
-    .on('end', async () => {
-      const sortedTrades = sortByDate(rawTrades);
-      const fxRates = await fetchFxRates({ trades: sortedTrades, getDate });
-      writeToFile('revolut/fx_rates.json', fxRates);
+  const csv = fs.readFileSync('./input/revolut/trades.csv', 'utf8');
+  const rawTrades = await neatCsv(csv);
 
-      const tradesExclCash = R.pipe(
-        assignFXRateAndTotalPLN(fxRates),
-        removeCashOperations
-      )(sortedTrades);
+  const sortedTrades = sortByDate(rawTrades);
+  const fxRates = await fetchFxRates({ trades: sortedTrades, getDate });
+  writeToFile('revolut/fx_rates.json', fxRates);
 
-      const fees = calculateFees(tradesExclCash);
-      result.fees = fees;
-      result.total.expense += fees;
+  const tradesExclCash = R.pipe(
+    assignFXRateAndTotalPLN(fxRates),
+    removeCashOperations
+  )(sortedTrades);
 
-      const tradesExclFees = rejectByType(TYPES.CUSTODY_FEE, tradesExclCash);
-      result.dividends = calculateDividends(tradesExclFees);
+  const fees = calculateFees(tradesExclCash);
+  result.fees = fees;
+  result.total.expense += fees;
 
-      const tradesExclDividends = rejectByType(TYPES.DIVIDEND, tradesExclCash);
-      const trades = prependLeftoverTrades(tradesExclDividends);
-      const { deals, openTrades } = groupToDeals(trades);
-      writeToFile('revolut/deals.json', deals);
-      writeToFile('revolut/openTrades.json', openTrades);
+  const tradesExclFees = rejectByType(TYPES.CUSTODY_FEE, tradesExclCash);
+  result.dividends = calculateDividends(tradesExclFees);
 
-      result.trades = calculateDeals(deals);
+  const tradesExclDividends = rejectByType(TYPES.DIVIDEND, tradesExclCash);
+  const trades = prependLeftoverTrades(tradesExclDividends);
+  const { deals, openTrades } = groupToDeals(trades);
+  writeToFile('revolut/deals.json', deals);
+  writeToFile('revolut/openTrades.json', openTrades);
 
-      result.total.expense = round(result.total.expense + result.trades.expense);
-      result.total.income = round(result.total.income + result.trades.income);
-      result.total.profit = round(result.total.income - result.total.expense);
-      result.total.tax = round(result.total.profit * TAX_RATE + result.dividends.tax);
+  result.trades = calculateDeals(deals);
 
-      writeToFile('revolut/result.json', result);
-    });
+  result.total.expense = round(result.total.expense + result.trades.expense);
+  result.total.income = round(result.total.income + result.trades.income);
+  result.total.profit = round(result.total.income - result.total.expense);
+  result.total.tax = round(result.total.profit * TAX_RATE + result.dividends.tax);
+
+  writeToFile('revolut/result.json', result);
+
+  return result;
 }
 
-module.exports = {
+export {
   execute,
 };

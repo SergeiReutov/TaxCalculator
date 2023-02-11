@@ -24,7 +24,7 @@ const DATE_FORMAT = 'YYYY-MM-DDTHH:mm:ss.SSSSSSZ';
 
 const DIVIDEND_NET_RATE = 0.85;
 
-module.exports = {
+export {
   TYPES,
   PROPERTIES,
   DATE_FORMAT,

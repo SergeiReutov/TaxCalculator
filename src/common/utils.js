@@ -1,5 +1,5 @@
-const fs = require('fs');
-const R = require('ramda');
+import fs from 'fs';
+import * as R from 'ramda';
 
 const writeToFile = R.curry((file, data) => {
   fs.writeFileSync(`output/${file}`, JSON.stringify(data));
@@ -13,8 +13,8 @@ const debug = R.curry((message, data) => {
   return data;
 })
 
-module.exports = {
+export {
   writeToFile,
   round,
   debug,
-}
+};
