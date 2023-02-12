@@ -2,18 +2,20 @@ import * as R from 'ramda';
 import moment from 'moment';
 import fetch from 'node-fetch';
 
-import { NBP_BASE_URL } from './enums.js';
+import { NBP_BASE_URL, PROPERTIES } from './enums.js';
 
-const fetchFxRates = async ({ trades = [], getDate }) => {
+const fetchFxRates = async ({ trades = [] }) => {
   let fx_rates = {};
   let rateStartDate = R.pipe(
     R.head,
-    getDate,
+    R.prop(PROPERTIES.DATE),
+    (date) => moment(date, 'YYYY-MM-DD'),
     (date) => date.subtract(5, 'days')
   )(trades);
   let rateEndDate = R.pipe(
     R.last,
-    getDate
+    R.prop(PROPERTIES.DATE),
+    (date) => moment(date, 'YYYY-MM-DD'),
   )(trades);
   let currentEndDate = moment.min([
     rateEndDate,
@@ -47,6 +49,10 @@ const fetchFxRates = async ({ trades = [], getDate }) => {
     if (currentEndDate.isAfter(rateEndDate)) {
       currentEndDate = moment(rateEndDate);
     }
+  }
+
+  if (R.isEmpty(fx_rates)) {
+    throw new Error('Error fetching FX Rates');
   }
 
   return fx_rates;

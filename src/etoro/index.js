@@ -1,20 +1,27 @@
 import fs from 'fs';
 import neatCsv from 'neat-csv';
+import * as R from 'ramda';
 
-import { TAX_RATE } from '../common/enums.js';
+import { TYPES } from '../common/enums.js';
 import { fetchFxRates } from '../common/fxRates.js';
-import { writeToFile, round } from '../common/utils.js';
 import {
-  splitDealsToTrades,
-  getDate,
+  writeToFile,
+  round,
   sortByDate,
   assignFXRateAndTotalPLN,
+  removeCashOperations,
+  calculateFees,
+  rejectByType,
   groupToDeals,
   calculateDeals,
+} from '../common/utils.js';
+import {
+  parseTrades,
+  parseDividends,
+  calculateDividends,
 } from './utils.js';
 
 let result = {
-  fees: 0, // overall fees
   dividends: {
     income: 0, // amount of received dividends (gross)
     taxOverall: 0, // dividends.income * tax rate
@@ -25,37 +32,48 @@ let result = {
     expense: 0, // sum of SELL trades
     income: 0, // sum of BUY trades
     profit: 0, // difference
-    tax: 0 // trades.profit * tax rate
+    tax: 0, // profit * tax rate
   },
   total: {
-    expense: 0, // trades.expense + fees
-    income: 0, // only trades.income - dividends are counted and filled separately
     profit: 0, // total.income - total.expense
     tax: 0 // total.profit * tax rate
   },
 };
 
 async function execute() {
-  const csv = fs.readFileSync('./input/etoro/deals.csv', 'utf8');
-  const rawDeals = await neatCsv(csv);
-  const trades = splitDealsToTrades(rawDeals);
-  const sortedTrades = sortByDate(trades);
-  const fxRates = await fetchFxRates({ trades: sortedTrades, getDate });
+  let csv;
+  try {
+    csv = fs.readFileSync('./input/etoro/deals.csv', 'utf8');
+  } catch (error) {
+    console.error('No etoro deals!');
+    return result;
+  }
+  const rawData = await neatCsv(csv);
+  const trades = parseTrades(rawData);
+  const dividendTrades = await parseDividends();
+  const sortedTrades = sortByDate([...trades, ...dividendTrades]);
+  
+  const fxRates = await fetchFxRates({ trades: sortedTrades });
   writeToFile('etoro/fx_rates.json', fxRates);
 
-  const tradesWithPLN = assignFXRateAndTotalPLN(fxRates)(sortedTrades);
+  const tradesExclCash = R.pipe(
+    assignFXRateAndTotalPLN(fxRates),
+    removeCashOperations
+  )(sortedTrades);
 
-  // result.dividends = calculateDividends(tradesExclFees);
+  const fees = calculateFees(tradesExclCash);
+  const tradesExclFees = rejectByType(TYPES.CUSTODY_FEE, tradesExclCash);
 
-  const { deals } = groupToDeals(tradesWithPLN);
+  result.dividends = calculateDividends(tradesExclFees);
+  const tradesExclDividends = rejectByType(TYPES.DIVIDEND, tradesExclFees);
+
+  const { deals } = groupToDeals(tradesExclDividends);
   writeToFile('etoro/deals.json', deals);
 
-  result.trades = calculateDeals(deals);
+  result.trades = calculateDeals({ deals, fees });
 
-  result.total.expense = round(result.total.expense + result.trades.expense);
-  result.total.income = round(result.total.income + result.trades.income);
-  result.total.profit = round(result.total.income - result.total.expense);
-  result.total.tax = round(result.total.profit * TAX_RATE + result.dividends.tax);
+  result.total.profit = round(result.trades.profit + result.dividends.income - result.dividends.taxPaid);
+  result.total.tax = Math.max(round(result.dividends.tax + result.trades.tax), 0);
 
   writeToFile('etoro/result.json', result);
 

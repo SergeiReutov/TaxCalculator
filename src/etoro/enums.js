@@ -1,6 +1,7 @@
 const TYPES = {
   BUY: 'BUY',
   SELL: 'SELL',
+  DIVIDEND: 'DIVIDEND',
 };
 
 const PROPERTIES = {
@@ -9,6 +10,7 @@ const PROPERTIES = {
   TICKER: 'Ticker',
   DATE: 'Date',
   QUANTITY: 'Quantity',
+  PRICE: 'Price',
   TOTAL_AMOUNT: 'Total Amount',
   // inner properties, don't change them
   FX_RATE: 'FX Rate',

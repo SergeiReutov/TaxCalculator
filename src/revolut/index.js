@@ -2,56 +2,66 @@ import fs from 'fs';
 import neatCsv from 'neat-csv';
 import * as R from 'ramda';
 
-import { TYPES } from './enums.js';
-import { TAX_RATE } from '../common/enums.js';
+import { TYPES } from '../common/enums.js';
 import { fetchFxRates } from '../common/fxRates.js';
-import { writeToFile, round } from '../common/utils.js';
 import {
-  getDate,
+  writeToFile,
+  round,
   sortByDate,
   assignFXRateAndTotalPLN,
   removeCashOperations,
   calculateFees,
   rejectByType,
-  calculateDividends,
-  prependLeftoverTrades,
   groupToDeals,
   calculateDeals,
+} from '../common/utils.js';
+import {
+  parseTrades,
+  calculateDividends,
+  getLeftoverTrades,
 } from './utils.js';
 
 
 // -------------------------------------------------------------------
 
 let result = {
-  fees: 0, // overall fees
   dividends: {
     income: 0, // amount of received dividends (gross)
     taxOverall: 0, // dividends.income * tax rate
     taxPaid: 0, // taxes already paid in the US
-    tax: 0 // what's left (might be negative if you pay > 19% in the US)
+    tax: 0 // what's left (0 if result is negative)
   },
   trades: {
-    expense: 0, // sum of SELL trades
+    expense: 0, // sum of SELL trades + fees
     income: 0, // sum of BUY trades
     profit: 0, // difference
-    tax: 0 // trades.profit * tax rate
+    tax: 0, // profit * tax_rate (0 if result is negative)
   },
-  total: {
-    expense: 0, // trades.expense + fees
-    income: 0, // only trades.income - dividends are counted and filled separately
-    profit: 0, // total.income - total.expense
-    tax: 0 // total.profit * tax rate
+  total: { // for viewing purposes only
+    profit: 0, // trades.profit + dividends.income - dividends.taxPaid
+    tax: 0 // dividends.tax + trades.tax
   },
 };
 
 // -------------------------------------------------------------------
 
 async function execute() {
-  const csv = fs.readFileSync('./input/revolut/trades.csv', 'utf8');
+  let csv;
+  try {
+    csv = fs.readFileSync('./input/revolut/trades.csv', 'utf8');
+  } catch (error) {
+    console.error('No revolut trades!');
+    return result;
+  }
   const rawTrades = await neatCsv(csv);
+  const leftOverTrades = getLeftoverTrades();
+  const sortedTrades = R.pipe(
+    parseTrades,
+    R.concat(leftOverTrades),
+    sortByDate
+  )(rawTrades);
 
-  const sortedTrades = sortByDate(rawTrades);
-  const fxRates = await fetchFxRates({ trades: sortedTrades, getDate });
+  const fxRates = await fetchFxRates({ trades: sortedTrades });
   writeToFile('revolut/fx_rates.json', fxRates);
 
   const tradesExclCash = R.pipe(
@@ -60,24 +70,19 @@ async function execute() {
   )(sortedTrades);
 
   const fees = calculateFees(tradesExclCash);
-  result.fees = fees;
-  result.total.expense += fees;
-
   const tradesExclFees = rejectByType(TYPES.CUSTODY_FEE, tradesExclCash);
-  result.dividends = calculateDividends(tradesExclFees);
 
+  result.dividends = calculateDividends(tradesExclFees);
   const tradesExclDividends = rejectByType(TYPES.DIVIDEND, tradesExclCash);
-  const trades = prependLeftoverTrades(tradesExclDividends);
-  const { deals, openTrades } = groupToDeals(trades);
+  
+  const { deals, openTrades } = groupToDeals(tradesExclDividends);
   writeToFile('revolut/deals.json', deals);
   writeToFile('revolut/openTrades.json', openTrades);
 
-  result.trades = calculateDeals(deals);
+  result.trades = calculateDeals({ deals, fees });
 
-  result.total.expense = round(result.total.expense + result.trades.expense);
-  result.total.income = round(result.total.income + result.trades.income);
-  result.total.profit = round(result.total.income - result.total.expense);
-  result.total.tax = round(result.total.profit * TAX_RATE + result.dividends.tax);
+  result.total.profit = round(result.trades.profit + result.dividends.income - result.dividends.taxPaid);
+  result.total.tax = Math.max(round(result.dividends.tax + result.trades.tax), 0);
 
   writeToFile('revolut/result.json', result);
 
