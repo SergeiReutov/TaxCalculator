@@ -16,11 +16,11 @@ let result = {
     income: 0, // sum of dividends.income
     taxOverall: 0, // sum of dividends.taxOverall
     taxPaid: 0, // sum of dividends.taxPaid
-    tax: 0 // sum of dividends.tax (might not be equal to taxOverall - taxPaid)
+    tax: 0 // taxOverall - taxPaid
   },
   trades: {
-    expense: 0, // sum of trades.expense
     income: 0, // sum of trades.income
+    expense: 0, // sum of trades.expense
     profit: 0, // sum of trades.profit
     tax: 0, // (trades.profit * tax rate)
   },
@@ -44,10 +44,10 @@ let result = {
       result.dividends.income = round(revolutResult.dividends.income + etoroResult.dividends.income);
       result.dividends.taxOverall = round(revolutResult.dividends.taxOverall + etoroResult.dividends.taxOverall);
       result.dividends.taxPaid = round(revolutResult.dividends.taxPaid + etoroResult.dividends.taxPaid);
-      result.dividends.tax = round(revolutResult.dividends.tax + etoroResult.dividends.tax);
+      result.dividends.tax = round(result.dividends.taxOverall - result.dividends.taxPaid);
 
-      result.trades.expense = round(revolutResult.trades.expense + etoroResult.trades.expense);
       result.trades.income = round(revolutResult.trades.income + etoroResult.trades.income);
+      result.trades.expense = round(revolutResult.trades.expense + etoroResult.trades.expense);
       result.trades.profit = round(revolutResult.trades.profit + etoroResult.trades.profit);
       result.trades.tax = round(result.trades.profit * TAX_RATE);
 
