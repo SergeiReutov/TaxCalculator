@@ -104,9 +104,7 @@ const parseDividends = async () => {
   }
 }
 
-// It is super hard to calculate dividends in eToro
-// there's no W-8BEN Form, and I pay 25-30% for each dividend.
-// And still I have to pay 4% on the NET amount!!
+// eToro dividends show NET value, so we just calculate 4% of it.
 const calculateDividends = (trades = []) => {
   const totalDividends = R.pipe(
     filterByType(TYPES.DIVIDEND),

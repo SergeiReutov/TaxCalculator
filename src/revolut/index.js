@@ -57,6 +57,7 @@ async function execute() {
   const leftOverTrades = getLeftoverTrades();
   const sortedTrades = R.pipe(
     parseTrades,
+    rejectByType(TYPES.STOCK_TRANSFER),
     R.concat(leftOverTrades),
     sortByDate
   )(rawTrades);

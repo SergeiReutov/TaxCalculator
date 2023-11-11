@@ -22,12 +22,14 @@ const parseTrades = R.map((trade) => ({
   )(trade),
   [PROPERTIES.PRICE]: R.pipe(
     R.prop('Price per share'),
-    R.replace(/[^0-9\.]/g, ''),
+    R.replace(/[^0-9\,]/g, ''),
+    R.replace(',', '.'),
     parseFloat
   )(trade),
   [PROPERTIES.TOTAL_AMOUNT]: R.pipe(
     R.prop('Total Amount'),
-    R.replace(/[^0-9\.]/g, ''),
+    R.replace(/[^0-9\,]/g, ''),
+    R.replace(',', '.'),
     parseFloat
   )(trade),
 }));

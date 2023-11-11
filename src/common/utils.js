@@ -136,28 +136,28 @@ const getDeals = (trades = []) => {
   trades.forEach((trade) => {
     const tradeQuantity = R.prop(PROPERTIES.QUANTITY, trade);
     if (R.propEq(PROPERTIES.TYPE, TYPES.STOCK_SPLIT, trade)) {
-      currentQuantity += tradeQuantity;
+      currentQuantity += round(tradeQuantity);
       return;
     }
     if (R.propEq(PROPERTIES.TYPE, TYPES.BUY, trade)) {
       // if BUY trade - just increase currentQuantity
-      currentQuantity += tradeQuantity;
+      currentQuantity += round(tradeQuantity);
       currentDeal.push(trade);
       return;
     }
     // if SELL trade - decrease currentQuantity
-    currentQuantity -= tradeQuantity;
-    if (currentQuantity < 0) {
+    currentQuantity -= round(tradeQuantity);
+    if (round(currentQuantity) < 0) {
       // means your input is not full
       // check leftoverTrades from the past year
       // should be in input/leftoverTrades.json
       throwError('SELL with no corresponding BUY', trade);
-    } else if (currentQuantity === 0) {
+    } else if (round(currentQuantity) === 0) {
       // means the currentTrade is done
       currentDeal.push(trade);
       result.push(currentDeal);
       currentDeal = [];
-    } else if (currentQuantity > 0) {
+    } else if (round(currentQuantity) > 0) {
       // means you sold just a part of bought stocks
       let subDeal = [];
       [subDeal, currentDeal] = splitDeal(currentDeal, trade);
