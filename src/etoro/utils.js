@@ -3,7 +3,7 @@ import moment from 'moment';
 import * as R from 'ramda';
 import neatCsv from 'neat-csv';
 
-import { round, filterByType, sumPLN } from '../common/utils.js';
+import { round, filterByType, sumPLN, sumUSD } from '../common/utils.js';
 import { TYPES, PROPERTIES }  from '../common/enums.js';
 import { DATE_FORMAT } from './enums.js';
 
@@ -108,16 +108,21 @@ const parseDividends = async () => {
 const calculateDividends = (trades = []) => {
   const totalDividends = R.pipe(
     filterByType(TYPES.DIVIDEND),
-    sumPLN
+    (dividends) => ({
+      pln: sumPLN(dividends),
+      usd: sumUSD(dividends),
+    })
   )(trades);
 
-  const income = round(totalDividends); // would count NET amount as income
+  const income = round(totalDividends.pln); // would count NET amount as income
+  const incomeUsd = round(totalDividends.usd);
   const taxOverall = 0; // not needed
   const taxPaid = 0; // not needed
   const tax = round(income * 0.04);
 
   return {
     income,
+    incomeUsd,
     taxOverall,
     taxPaid,
     tax,

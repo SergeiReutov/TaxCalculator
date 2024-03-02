@@ -10,6 +10,8 @@ const writeToFile = R.curry((file, data) => {
 
 const round = (number) => Math.round((number + Number.EPSILON) * 100) / 100;
 
+const roundUnits = (number) => Math.round((number + Number.EPSILON) * 1000000) / 100000;
+
 const debug = R.curry((message, data) => {
   console.log(message);
   return data;
@@ -74,10 +76,21 @@ const sumPLN = R.reduce(
   0
 );
 
+const sumUSD = R.reduce(
+  (acc, trade) => acc += R.prop(PROPERTIES.TOTAL_AMOUNT, trade),
+  0
+);
+
 const calculateFees = R.pipe(
   filterByType(TYPES.CUSTODY_FEE),
-  sumPLN,
-  (fees) => Math.abs(round(fees))
+  (fees) => ({
+    pln: sumPLN(fees),
+    usd: sumUSD(fees),
+  }),
+  (fees) => ({
+    pln: Math.abs(round(fees.pln)),
+    usd: Math.abs(round(fees.usd)),
+  })
 );
 
 const throwError = (error, trade = {}) => {
@@ -136,28 +149,28 @@ const getDeals = (trades = []) => {
   trades.forEach((trade) => {
     const tradeQuantity = R.prop(PROPERTIES.QUANTITY, trade);
     if (R.propEq(PROPERTIES.TYPE, TYPES.STOCK_SPLIT, trade)) {
-      currentQuantity += round(tradeQuantity);
+      currentQuantity += roundUnits(tradeQuantity);
       return;
     }
     if (R.propEq(PROPERTIES.TYPE, TYPES.BUY, trade)) {
       // if BUY trade - just increase currentQuantity
-      currentQuantity += round(tradeQuantity);
+      currentQuantity += roundUnits(tradeQuantity);
       currentDeal.push(trade);
       return;
     }
     // if SELL trade - decrease currentQuantity
-    currentQuantity -= round(tradeQuantity);
-    if (round(currentQuantity) < 0) {
+    currentQuantity -= roundUnits(tradeQuantity);
+    if (roundUnits(currentQuantity) < 0) {
       // means your input is not full
       // check leftoverTrades from the past year
       // should be in input/leftoverTrades.json
       throwError('SELL with no corresponding BUY', trade);
-    } else if (round(currentQuantity) === 0) {
+    } else if (roundUnits(currentQuantity) === 0) {
       // means the currentTrade is done
       currentDeal.push(trade);
       result.push(currentDeal);
       currentDeal = [];
-    } else if (round(currentQuantity) > 0) {
+    } else if (roundUnits(currentQuantity) > 0) {
       // means you sold just a part of bought stocks
       let subDeal = [];
       [subDeal, currentDeal] = splitDeal(currentDeal, trade);
@@ -193,45 +206,64 @@ const groupToDeals = R.pipe(
 const calculateDealBalance = R.map(
   (deal = []) => {
     let expense = 0;
+    let expenseUsd = 0;
     let income = 0;
+    let incomeUsd = 0;
     deal.forEach((trade) => {
       const cost = R.prop(PROPERTIES.TOTAL_PLN, trade);
+      const costUsd = R.prop(PROPERTIES.TOTAL_AMOUNT, trade);
       if (R.propEq(PROPERTIES.TYPE, TYPES.BUY, trade)) {
         expense += cost;
+        expenseUsd += costUsd;
       } else {
         income += cost;
+        incomeUsd += costUsd;
       }
     });
-    return { expense, income };
+    return { expense, expenseUsd, income, incomeUsd };
   }
 );
 
 const calculateTickerBalance = (balanceList = []) => {
   let expense = 0;
+  let expenseUsd = 0;
   let income = 0;
+  let incomeUsd = 0;
   balanceList.forEach((balance) => {
     expense += balance.expense;
+    expenseUsd += balance.expenseUsd;
     income += balance.income;
+    incomeUsd += balance.incomeUsd;
   });
-  return { expense, income };
+  return { expense, expenseUsd, income, incomeUsd };
 };
 
 const calculateTotalBalance = (fees) => (tickerBalances = {}) => {
   let totalExpense = 0;
+  let totalExpenseUsd = 0;
   let totalIncome = 0;
+  let totalIncomeUsd = 0;
   Object.values(tickerBalances).forEach((balance) => {
     totalExpense += balance.expense;
+    totalExpenseUsd += balance.expenseUsd;
     totalIncome += balance.income;
+    totalIncomeUsd += balance.incomeUsd;
   });
-  totalExpense = round(totalExpense + fees);
+  totalExpense = round(totalExpense + fees.pln);
+  totalExpenseUsd = round(totalExpenseUsd + fees.usd);
   totalIncome = round(totalIncome);
+  totalIncomeUsd = round(totalIncomeUsd);
   const totalProfit = round(totalIncome - totalExpense);
+  const totalProfitUsd = round(totalIncomeUsd - totalExpenseUsd);
   const totalTax = Math.max(round(totalProfit * TAX_RATE), 0);
 
   return {
     expense: totalExpense,
+    expenseUsd: totalExpenseUsd,
     income: totalIncome,
+    incomeUsd: totalIncomeUsd,
     profit: totalProfit,
+    profitUsd: totalProfitUsd,
     tax: totalTax,
   }
 };
@@ -253,6 +285,7 @@ export {
   filterByType,
   rejectByType,
   sumPLN,
+  sumUSD,
   groupToDeals,
   calculateDeals,
 };
